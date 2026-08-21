@@ -15,7 +15,8 @@ import {
   StarIcon,
   PlusIcon,
   TrashIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  ArrowTopRightOnSquareIcon
 } from "@heroicons/react/24/outline";
 
 interface ServerData {
@@ -427,6 +428,18 @@ function ManageServerContent() {
             </button>
           );
         })}
+
+        <Link
+          href={`/home/server?id=${server.id}`}
+          className={`px-4 py-3 text-xs font-bold inline-flex items-center gap-1.5 transition-colors ${
+            isDark
+              ? "text-zinc-500 hover:text-zinc-300"
+              : "text-zinc-400 hover:text-zinc-600"
+          }`}
+        >
+          <span>View Server</span>
+          <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       <div className={`rounded-2xl border p-6 sm:p-8 shadow-sm ${isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"}`}>
