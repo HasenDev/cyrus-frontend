@@ -306,9 +306,15 @@ export default function FileManager({
         method: "GET",
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) {
-        throw new Error(data.error || "Problem fetching directory");
+        throw new Error(data.error || "The daemon isn't responding to the internal requests. Please try again in a few moments.");
       }
 
       const fileList = data.files || [];
@@ -328,7 +334,11 @@ export default function FileManager({
         window.history.replaceState({}, "", url.toString());
       }
     } catch (err: any) {
-      setDaemonError(err?.message || "Seems like we encountered a problem while fetching the directory. Please check if the node daemon is online.");
+      if (err?.message?.includes("Failed to fetch") || err?.name === "TypeError" || !err?.message) {
+        setDaemonError("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      } else {
+        setDaemonError(err?.message || "The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
     } finally {
       setLoading(false);
     }
@@ -389,7 +399,13 @@ export default function FileManager({
         method: "GET",
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return;
+      }
       if (res.ok && data.files) {
         setMoveFolderList(data.files.filter((f: FileItem) => f.directory));
         setMoveBrowserDir(data.currentDirectory || dir);
@@ -459,7 +475,13 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "write", file: targetFilePath, content: "" })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed to create file.");
       setNewFileOpen(false);
       setNewFileName("");
@@ -470,7 +492,7 @@ export default function FileManager({
         fetchFiles(currentDir, true);
       }
     } catch (err: any) {
-      setModalError(err.message || "Failed to create file.");
+      setModalError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to create file.");
     } finally {
       setModalLoading(false);
     }
@@ -488,13 +510,19 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "create-folder", name: newFolderName.trim(), directory: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed to create folder.");
       setNewFolderName("");
       setNewFolderOpen(false);
       fetchFiles(currentDir, true);
     } catch (err: any) {
-      setModalError(err.message || "Failed to create folder.");
+      setModalError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to create folder.");
     } finally {
       setModalLoading(false);
     }
@@ -512,12 +540,18 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "rename", from: renameTarget, to: renameValue.trim(), root: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed to rename.");
       setRenameOpen(false);
       fetchFiles(currentDir, true);
     } catch (err: any) {
-      setModalError(err.message || "Failed to rename.");
+      setModalError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to rename.");
     } finally {
       setModalLoading(false);
     }
@@ -534,12 +568,18 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "move", from: moveTarget, to: moveBrowserDir, root: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed to move item.");
       setMoveOpen(false);
       fetchFiles(currentDir, true);
     } catch (err: any) {
-      setModalError(err.message || "Failed to move item.");
+      setModalError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to move item.");
     } finally {
       setModalLoading(false);
     }
@@ -554,11 +594,17 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "copy", file: fileName, root: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed to copy file.");
       fetchFiles(currentDir, true);
     } catch (err: any) {
-      setUploadError(err.message || "Failed to copy file.");
+      setUploadError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to copy file.");
     }
   };
 
@@ -574,12 +620,18 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "chmod", file: chmodTarget, mode: chmodValue, root: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed to update permissions.");
       setChmodOpen(false);
       fetchFiles(currentDir, true);
     } catch (err: any) {
-      setModalError(err.message || "Failed to update permissions.");
+      setModalError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to update permissions.");
     } finally {
       setModalLoading(false);
     }
@@ -593,7 +645,13 @@ export default function FileManager({
       const res = await apiRequest(`api/v1/client/servers/${serverId}/files?action=download-url&file=${encodeURIComponent(filePath)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok || !data.url) throw new Error(data.error || "Failed to generate download URL.");
 
       const link = document.createElement("a");
@@ -603,7 +661,7 @@ export default function FileManager({
       link.click();
       document.body.removeChild(link);
     } catch (err: any) {
-      setUploadError(err.message || "Download failed.");
+      setUploadError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Download failed.");
     }
   };
 
@@ -624,14 +682,20 @@ export default function FileManager({
         `api/v1/client/servers/${serverId}/files?action=upload-url&directory=${encodeURIComponent(currentDir)}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const linkData = await linkRes.json();
+      const linkText = await linkRes.text();
+      let linkData: any = {};
+      try {
+        linkData = JSON.parse(linkText);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!linkRes.ok || !linkData.url) throw new Error(linkData.error || "Failed to request direct upload link.");
 
       uploadUrl = linkData.url;
       maxLimitMB = linkData.maxSizeMB || 100;
     } catch (err: any) {
       setUploadProgress(null);
-      setUploadError(err.message || "Could not retrieve upload destination.");
+      setUploadError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Could not retrieve upload destination.");
       return;
     }
 
@@ -666,16 +730,16 @@ export default function FileManager({
       } else {
         try {
           const res = JSON.parse(xhr.responseText);
-          setUploadError(res.error || "Direct upload to node failed.");
+          setUploadError(res.error || "The daemon isn't responding to the internal requests. Please try again in a few moments.");
         } catch {
-          setUploadError("Upload failed: Node returned an error.");
+          setUploadError("The daemon isn't responding to the internal requests. Please try again in a few moments.");
         }
       }
     };
 
     xhr.onerror = () => {
       setUploadProgress(null);
-      setUploadError("Upload failed: Could not connect to daemon node.");
+      setUploadError("The daemon isn't responding to the internal requests. Please try again in a few moments.");
     };
 
     xhr.send(formData);
@@ -693,12 +757,18 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "delete", files: selectedFiles, root: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) throw new Error(data.error || "Failed to delete files.");
       setDeleteConfirmOpen(false);
       fetchFiles(currentDir, true);
     } catch (err: any) {
-      setModalError(err.message || "Failed to delete files.");
+      setModalError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to delete files.");
     } finally {
       setModalLoading(false);
     }
@@ -714,11 +784,17 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "archive", files: targets, root: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) setUploadError(data.error || "Failed to archive.");
       else fetchFiles(currentDir, true);
     } catch (err: any) {
-      setUploadError(err.message || "Failed to archive.");
+      setUploadError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to archive.");
     } finally {
       setIsArchiving(false);
     }
@@ -733,11 +809,17 @@ export default function FileManager({
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "unarchive", file: fileName, root: currentDir })
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
+      }
       if (!res.ok) setUploadError(data.error || "Failed to unarchive.");
       else fetchFiles(currentDir, true);
     } catch (err: any) {
-      setUploadError(err.message || "Failed to unarchive.");
+      setUploadError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Failed to unarchive.");
     }
   };
 
