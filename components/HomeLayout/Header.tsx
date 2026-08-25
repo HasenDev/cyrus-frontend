@@ -17,6 +17,7 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
 
   const isDark = currentTheme === "dark";
   const accentColor = config.accentColor;
+
   useEffect(() => {
     const saved = Cookies.get("theme") as "white" | "dark";
     if (saved && (saved === "dark" || saved === "white")) {
@@ -24,14 +25,17 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
       config.theme = saved;
     }
   }, []);
+
   const toggleTheme = () => {
     const nextTheme = isDark ? "white" : "dark";
     setTheme(nextTheme);
     window.location.reload();
   };
+
   const dicebearUrl = user?.id
     ? `https://api.dicebear.com/7.x/identicon/svg?seed=${user.id}`
     : `https://api.dicebear.com/7.x/identicon/svg?seed=default`;
+
   const computeAvatarSrc = () => {
     if (!user?.avatarUrl) return dicebearUrl;
     if (user.avatarUrl.startsWith("http://") || user.avatarUrl.startsWith("https://")) {
@@ -51,14 +55,15 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
   useEffect(() => {
     setAvatarSrc(computeAvatarSrc());
   }, [user?.avatarUrl, user?.id]);
+
   const formattedCredits = parseCredits(user?.metrics?.credits);
 
   return (
     <header
-      className={`sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b rounded-br-2xl rounded-bl-2xl md:rounded-bl-none px-6 backdrop-blur-md transition-colors ${
+      className={`sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b rounded-br-2xl rounded-bl-2xl md:rounded-bl-none px-6 backdrop-blur-none md:backdrop-blur-md transition-colors ${
         isDark
-          ? "border-white/[0.06] text-zinc-100"
-          : "border-zinc-200 bg-white text-zinc-900"
+          ? "border-white/[0.06] bg-black/85 md:bg-black/40 text-zinc-100"
+          : "border-zinc-200 bg-white/95 md:bg-white/80 text-zinc-900"
       }`}
     >
       <div className="flex items-center gap-4">
