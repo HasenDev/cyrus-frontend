@@ -37,7 +37,6 @@ const getSavedAccentColor = (): string => {
 export const config: AppConfig = {
   accentColor: getSavedAccentColor(),
   theme: getSavedTheme(),
-  panelVersion: "1.0.0",
   testingMode: false,
   testingModeApiUrl: "https://cyruspaneltest.admibot.xyz/",
   get apiBaseUrl(): string {
