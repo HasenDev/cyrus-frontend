@@ -64,12 +64,20 @@ function formatBytes(bytes: number): string {
 
 function formatUptime(seconds: number): string {
   if (!seconds || seconds <= 0) return "Offline";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+
+  const month = Math.floor(seconds / 2592000);
+  const week = Math.floor((seconds % 2592000) / 604800);
+  const day = Math.floor((seconds % 604800) / 86400);
+  const hour = Math.floor((seconds % 86400) / 3600);
+  const minute = Math.floor((seconds % 3600) / 60);
+  const second = seconds % 60;
+
+  if (month > 0) return `${month}mo ${week}w ${day}d`;
+  if (week > 0) return `${week}w ${day}d ${hour}h`;
+  if (day > 0) return `${day}d ${hour}h ${minute}m`;
+  if (hour > 0) return `${hour}h ${minute}m ${second}s`;
+  if (minute > 0) return `${minute}m ${second}s`;
+  return `${second}s`;
 }
 
 const ERROR_BADGE = "\x1b[41;37;1m [Cyrus Daemon] \x1b[0m ";
