@@ -652,14 +652,32 @@ export default function FileManager({
       } catch {
         throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
       }
-      if (!res.ok || !data.url) throw new Error(data.error || "Failed to generate download URL.");
+      if (!res.ok || !data.url || !data.token) throw new Error(data.error || "Failed to generate download authorization.");
 
+      const downloadRes = await fetch(data.url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${data.token}`
+        }
+      });
+
+      if (!downloadRes.ok) {
+        let errData: any = {};
+        try {
+          errData = await downloadRes.json();
+        } catch {}
+        throw new Error(errData.error || "Failed to download file from daemon.");
+      }
+
+      const blob = await downloadRes.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = data.url;
+      link.href = blobUrl;
       link.setAttribute("download", fileName);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
     } catch (err: any) {
       setUploadError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Download failed.");
     }
@@ -669,12 +687,14 @@ export default function FileManager({
     if (!canUpload) return;
     const uploadedFiles = e.target.files;
     if (!uploadedFiles || uploadedFiles.length === 0) return;
+    const file = uploadedFiles[0];
 
     setUploadProgress(0);
     setUploadError(null);
 
     const token = Cookies.get("token");
     let uploadUrl = "";
+    let uploadToken = "";
     let maxLimitMB = 100;
 
     try {
@@ -689,33 +709,33 @@ export default function FileManager({
       } catch {
         throw new Error("The daemon isn't responding to the internal requests. Please try again in a few moments.");
       }
-      if (!linkRes.ok || !linkData.url) throw new Error(linkData.error || "Failed to request direct upload link.");
+      if (!linkRes.ok || !linkData.url || !linkData.token) throw new Error(linkData.error || "Failed to request direct upload link.");
 
       uploadUrl = linkData.url;
+      uploadToken = linkData.token;
       maxLimitMB = linkData.maxSizeMB || 100;
     } catch (err: any) {
       setUploadProgress(null);
       setUploadError(err.message?.includes("Failed to fetch") ? "The daemon isn't responding to the internal requests. Please try again in a few moments." : err.message || "Could not retrieve upload destination.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
     const maxBytes = maxLimitMB * 1024 * 1024;
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      if (uploadedFiles[i].size > maxBytes) {
-        setUploadProgress(null);
-        setUploadError(`File "${uploadedFiles[i].name}" exceeds the node upload limit of ${maxLimitMB} MB.`);
-        return;
-      }
+    if (file.size > maxBytes) {
+      setUploadProgress(null);
+      setUploadError(`File "${file.name}" exceeds the node upload limit of ${maxLimitMB} MB.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
     }
 
     const formData = new FormData();
     formData.append("directory", currentDir);
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      formData.append("files", uploadedFiles[i]);
-    }
+    formData.append("files", file);
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", uploadUrl);
+    xhr.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -938,7 +958,7 @@ export default function FileManager({
                 <ArrowUpTrayIcon className="w-4 h-4" />
                 <span>Upload</span>
               </button>
-              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileUpload} />
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
             </>
           )}
         </div>
