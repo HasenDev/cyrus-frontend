@@ -31,6 +31,7 @@ function compareVersions(a: string, b: string): number {
 export default function AdminOverviewPage() {
   const isDark = config.theme === "dark";
   const accentColor = config.accentColor;
+
   const [data, setData] = useState<OverviewData | null>(null);
   const [latestRelease, setLatestRelease] = useState<GitHubRelease | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -98,7 +99,7 @@ export default function AdminOverviewPage() {
   const currentVersion = data?.apiVersion || config.panelVersion || "1.0.0";
   const formattedCurrentVersion = currentVersion.startsWith("v") ? currentVersion : `v${currentVersion}`;
   const latestTag = latestRelease?.tagName || formattedCurrentVersion;
-  const formattedLatestTag = latestTag.startsWith("v") ? latestTag : `v${latestTag}`;
+  const formattedLatestTag = latestTag.startsWith("V") ? latestTag : `v${latestTag}`;
 
   const isUpToDate = latestRelease
     ? compareVersions(currentVersion, latestRelease.tagName) >= 0
