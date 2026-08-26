@@ -17,6 +17,7 @@ interface PanelSettings {
   recaptchaSecretKey: string;
   recaptchaEnabled: boolean;
   resendApiKey: string;
+  resendFromDomain?: string;
   resendEnabled: boolean;
 }
 
@@ -32,7 +33,6 @@ const COLOR_PRESETS = [
 
 export default function AdminSettingsPage() {
   const isDark = config.theme === "dark";
-  const activeAccent = config.accentColor;
   const [panelName, setPanelName] = useState("");
   const [panelDescription, setPanelDescription] = useState("");
   const [panelIcon, setPanelIcon] = useState("");
@@ -43,10 +43,12 @@ export default function AdminSettingsPage() {
   const [recaptchaSecretKey, setRecaptchaSecretKey] = useState("");
   const [recaptchaEnabled, setRecaptchaEnabled] = useState(false);
   const [resendApiKey, setResendApiKey] = useState("");
+  const [resendFromDomain, setResendFromDomain] = useState("");
   const [resendEnabled, setResendEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingSection, setSavingSection] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [sectionErrors, setSectionErrors] = useState<{ [key: string]: string | null }>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -56,11 +58,15 @@ export default function AdminSettingsPage() {
     }, 4000);
   };
 
+  const setSectionError = (section: string, msg: string | null) => {
+    setSectionErrors((prev) => ({ ...prev, [section]: msg }));
+  };
+
   useEffect(() => {
     async function fetchSettings() {
       const token = Cookies.get("token");
       if (!token) {
-        setError("Unauthorized: Token missing.");
+        setGlobalError("Unauthorized: Token missing.");
         setLoading(false);
         return;
       }
@@ -74,13 +80,13 @@ export default function AdminSettingsPage() {
         });
 
         if (res.status === 403) {
-          setError("Access Denied: You do not have the ADMIN_SETTINGS permission.");
+          setGlobalError("Access Denied: You do not have the ADMIN_SETTINGS permission.");
           setLoading(false);
           return;
         }
 
         if (!res.ok) {
-          setError("Failed to load settings from server.");
+          setGlobalError("Failed to load settings from server.");
           setLoading(false);
           return;
         }
@@ -98,9 +104,10 @@ export default function AdminSettingsPage() {
         setRecaptchaEnabled(!!data.recaptchaEnabled);
 
         setResendApiKey(data.resendApiKey || "");
+        setResendFromDomain(data.resendFromDomain || "");
         setResendEnabled(!!data.resendEnabled);
       } catch (err) {
-        setError("Network error occurred while fetching settings.");
+        setGlobalError("Network error occurred while fetching settings.");
       } finally {
         setLoading(false);
       }
@@ -116,10 +123,11 @@ export default function AdminSettingsPage() {
   ) => {
     e.preventDefault();
     setSavingSection(sectionKey);
+    setSectionError(sectionKey, null);
 
     const token = Cookies.get("token");
     if (!token) {
-      showToast("Error: Missing authentication token.");
+      setSectionError(sectionKey, "Missing authentication token.");
       setSavingSection(null);
       return;
     }
@@ -136,14 +144,14 @@ export default function AdminSettingsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        showToast(`Error: ${data.error || "Failed to update settings."}`);
+        setSectionError(sectionKey, data.error || "Failed to update settings.");
         setSavingSection(null);
         return;
       }
 
       showToast(data.message || "Settings saved successfully.");
     } catch (err) {
-      showToast("Error: Network failure.");
+      setSectionError(sectionKey, "Network failure occurred while saving.");
     } finally {
       setSavingSection(null);
     }
@@ -202,6 +210,7 @@ export default function AdminSettingsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
       <div>
         <h1 className={`text-3xl font-black tracking-tight mb-1 ${isDark ? "text-white" : "text-zinc-900"}`}>
           Admin Settings
@@ -210,11 +219,16 @@ export default function AdminSettingsPage() {
           Configure global system parameters, security verification, and email integrations.
         </p>
       </div>
-      {error && (
-        <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400 text-xs font-semibold">
-          {error}
+
+      {globalError && (
+        <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400 text-xs font-semibold flex items-center gap-2">
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>{globalError}</span>
         </div>
       )}
+
       <div
         className={`rounded-2xl border p-6 sm:p-7 shadow-sm transition-colors ${
           isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
@@ -378,6 +392,15 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
+          {sectionErrors["panelInfo"] && (
+            <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400 text-xs font-semibold flex items-center gap-2 mb-5">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{sectionErrors["panelInfo"]}</span>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={savingSection === "panelInfo"}
@@ -395,6 +418,7 @@ export default function AdminSettingsPage() {
           </button>
         </form>
       </div>
+
       <div
         className={`rounded-2xl border p-6 sm:p-7 shadow-sm transition-colors ${
           isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
@@ -467,6 +491,15 @@ export default function AdminSettingsPage() {
             </div>
           </div>
 
+          {sectionErrors["verification"] && (
+            <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400 text-xs font-semibold flex items-center gap-2 mb-5">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{sectionErrors["verification"]}</span>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={savingSection === "verification"}
@@ -484,6 +517,7 @@ export default function AdminSettingsPage() {
           </button>
         </form>
       </div>
+
       <div
         className={`rounded-2xl border p-6 sm:p-7 shadow-sm transition-colors ${
           isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
@@ -510,6 +544,7 @@ export default function AdminSettingsPage() {
             <ToggleSwitch enabled={resendEnabled} onChange={setResendEnabled} />
           </div>
         </div>
+
         <div
           className={`p-4 rounded-xl border mb-6 flex items-start gap-3 text-xs ${
             isDark
@@ -530,23 +565,54 @@ export default function AdminSettingsPage() {
           </div>
         </div>
 
-        <form onSubmit={(e) => handleSaveSettings(e, "email", { resendApiKey, resendEnabled })}>
-          <div className="mb-6">
-            <label className={`block text-xs font-semibold mb-1.5 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
-              Resend API Key
-            </label>
-            <input
-              type="password"
-              value={resendApiKey}
-              onChange={(e) => setResendApiKey(e.target.value)}
-              placeholder="re_123456789..."
-              className={`w-full rounded-lg border px-3.5 py-2.5 text-xs font-mono outline-none transition-all ${
-                isDark
-                  ? "border-white/10 bg-black/40 text-white focus:border-white/30"
-                  : "border-zinc-300 bg-zinc-50 text-zinc-900 focus:border-zinc-400"
-              }`}
-            />
+        <form onSubmit={(e) => handleSaveSettings(e, "email", { resendApiKey, resendFromDomain, resendEnabled })}>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className={`block text-xs font-semibold mb-1.5 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
+                Resend API Key
+              </label>
+              <input
+                type="password"
+                value={resendApiKey}
+                onChange={(e) => setResendApiKey(e.target.value)}
+                placeholder="re_123456789..."
+                className={`w-full rounded-lg border px-3.5 py-2.5 text-xs font-mono outline-none transition-all ${
+                  isDark
+                    ? "border-white/10 bg-black/40 text-white focus:border-white/30"
+                    : "border-zinc-300 bg-zinc-50 text-zinc-900 focus:border-zinc-400"
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className={`block text-xs font-semibold mb-1.5 ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
+                Custom Sender Domain <span className="text-zinc-500 font-normal">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                value={resendFromDomain}
+                onChange={(e) => setResendFromDomain(e.target.value)}
+                placeholder="e.g. yourdomain.com"
+                className={`w-full rounded-lg border px-3.5 py-2.5 text-xs font-mono outline-none transition-all ${
+                  isDark
+                    ? "border-white/10 bg-black/40 text-white focus:border-white/30"
+                    : "border-zinc-300 bg-zinc-50 text-zinc-900 focus:border-zinc-400"
+                }`}
+              />
+              <p className={`text-[11px] mt-1.5 ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
+                Must be verified in Resend. Emails will be sent from <code className="font-mono text-cyan-400">noreply@{resendFromDomain.trim() || "yourdomain.com"}</code>.
+              </p>
+            </div>
           </div>
+
+          {sectionErrors["email"] && (
+            <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400 text-xs font-semibold flex items-center gap-2 mb-5">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{sectionErrors["email"]}</span>
+            </div>
+          )}
 
           <button
             type="submit"
