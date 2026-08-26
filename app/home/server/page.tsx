@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback, useMemo, Suspense } from "reac
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Cookies from "js-cookie";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import ModalMenu from "@/components/Base/ModalMenu";
 import Loading from "@/components/Base/Loading";
 import Overview from "@/components/ServerManagement/Overview";
 import FileManager from "@/components/ServerManagement/FileManager";
@@ -19,7 +20,9 @@ import { config, apiRequest } from "@/lib/main";
 import {
   ArrowLeftIcon,
   WrenchScrewdriverIcon,
-  ShieldExclamationIcon
+  ShieldExclamationIcon,
+  TrashIcon,
+  ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 
 export interface ServerDetails {
@@ -72,6 +75,18 @@ function ServerPageContent() {
   const [nodeOnline, setNodeOnline] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const isInstalling = Boolean(server?.installing && server?.status !== "installation_failed");
+  const isInstallationFailed = Boolean(server?.status === "installation_failed");
+
   const {
     status,
     setStatus,
@@ -83,8 +98,9 @@ function ServerPageContent() {
   } = useServerWebSocket({
     serverId: server?.id || null,
     serverMemory: server?.memory || 1024,
-    enabled: Boolean(server && !server.installing && !server.suspended)
+    enabled: Boolean(server && !isInstalling && !server.suspended && !isInstallationFailed)
   });
+
   const accessibleTabs = useMemo(() => {
     if (isOwner) return ALL_TABS_CONFIG;
     return ALL_TABS_CONFIG.filter(tab => {
@@ -92,6 +108,7 @@ function ServerPageContent() {
       return userPermissions.some(p => p.startsWith(tab.prefix));
     });
   }, [isOwner, userPermissions]);
+
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
     const params = new URLSearchParams(window.location.search);
@@ -102,6 +119,7 @@ function ServerPageContent() {
     }
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, []);
+
   const fetchServerDetails = useCallback(async (silent = false) => {
     if (!serverId) {
       setError("No Server ID specified.");
@@ -150,9 +168,10 @@ function ServerPageContent() {
   const silentRefetchServer = useCallback(async () => {
     await fetchServerDetails(true);
   }, [fetchServerDetails]);
+
   useEffect(() => {
     let installPollInterval: NodeJS.Timeout | null = null;
-    if (server?.installing) {
+    if (server?.installing && server.status !== "installation_failed") {
       installPollInterval = setInterval(() => {
         silentRefetchServer();
       }, 3000);
@@ -160,10 +179,12 @@ function ServerPageContent() {
     return () => {
       if (installPollInterval) clearInterval(installPollInterval);
     };
-  }, [server?.installing, silentRefetchServer]);
+  }, [server?.installing, server?.status, silentRefetchServer]);
+
   useEffect(() => {
     fetchServerDetails(false);
   }, [serverId]);
+
   useEffect(() => {
     if (loading || !server) return;
 
@@ -181,6 +202,33 @@ function ServerPageContent() {
       }
     }
   }, [loading, server, accessibleTabs, activeTab]);
+
+  const handleDeleteServer = async () => {
+    if (!server) return;
+    setDeleteLoading(true);
+
+    const token = Cookies.get("token");
+    try {
+      const res = await apiRequest("api/v1/client/servers", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: server.id }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Failed to delete server.", "error");
+        setDeleteLoading(false);
+        return;
+      }
+
+      setIsDeleteModalOpen(false);
+      router.push("/home/services");
+    } catch {
+      showToast("Network error while requesting server deletion.", "error");
+      setDeleteLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -230,7 +278,25 @@ function ServerPageContent() {
   }
 
   return (
-    <div className="space-y-6 font-sans w-full max-w-full">      <div
+    <div className="space-y-6 font-sans w-full max-w-full">
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-20 right-6 z-[99999] flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border text-xs font-bold backdrop-blur-md ${
+              toastMessage.type === "error"
+                ? "bg-rose-500/10 border-rose-500/20 text-rose-400"
+                : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+            }`}
+          >
+            {toastMessage.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div
         className={`p-5 sm:p-6 rounded-2xl border transition-colors ${
           isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
         } shadow-sm`}
@@ -255,26 +321,50 @@ function ServerPageContent() {
                   Suspended
                 </span>
               )}
+              {isInstallationFailed && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400 shrink-0">
+                  Installation Failed
+                </span>
+              )}
+              {isInstalling && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shrink-0">
+                  Installing
+                </span>
+              )}
             </div>
             <p className={`text-xs truncate ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
               {server.description ? server.description : "No description provided."}
             </p>
           </div>
 
-          <Link
-            href="/home/services"
-            className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all border text-center flex items-center justify-center gap-1.5 shrink-0 shadow-sm outline-none focus:outline-none ${
-              isDark
-                ? "border-white/10 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
-                : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
-            }`}
-          >
-            <ArrowLeftIcon className="w-4 h-4" />
-            <span>Return</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto w-full sm:w-auto">
+            {isOwner && (!isInstalling || isInstallationFailed) && (
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all border text-center flex items-center justify-center gap-1.5 shrink-0 shadow-sm outline-none focus:outline-none border-rose-500/20 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span>Delete Server</span>
+              </button>
+            )}
+
+            <Link
+              href="/home/services"
+              className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all border text-center flex items-center justify-center gap-1.5 shrink-0 shadow-sm outline-none focus:outline-none ${
+                isDark
+                  ? "border-white/10 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                  : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
+              }`}
+            >
+              <ArrowLeftIcon className="w-4 h-4" />
+              <span>Return</span>
+            </Link>
+          </div>
         </div>
       </div>
-      {server.installing ? (
+
+      {isInstalling ? (
         <div
           className={`p-10 sm:p-14 rounded-2xl border text-center flex flex-col items-center justify-center gap-5 ${
             isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
@@ -297,6 +387,38 @@ function ServerPageContent() {
             <Loading width={14} height={14} color="#f59e0b" />
             <span>Provisioning environment...</span>
           </div>
+        </div>
+      ) : isInstallationFailed ? (
+        <div
+           className={`p-10 sm:p-14 rounded-2xl border text-center flex flex-col items-center justify-center gap-5 ${
+            isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
+          } shadow-sm`}
+        >
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500">
+            <ExclamationTriangleIcon className="w-8 h-8 stroke-[1.8]" />
+          </div>
+
+          <div className="space-y-1.5 max-w-md">
+            <h2 className={`text-base sm:text-lg font-black tracking-tight ${isDark ? "text-white" : "text-zinc-900"}`}>
+              Server Installation Failed
+            </h2>
+            <p className={`text-xs leading-relaxed ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>
+              The installation process could not be completed or exceeded the timeout limit. You can safely delete this server instance or contact an administrator to restore your data.
+            </p>
+          </div>
+
+          {isOwner && (
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition-all shadow-sm flex items-center gap-2"
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span>Delete Failed Server</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -431,6 +553,39 @@ function ServerPageContent() {
           )}
         </>
       )}
+
+      <ModalMenu isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} desktopMaxWidth="420px">
+        <div className={`p-6 text-left font-sans ${isDark ? "bg-[#0F1014] text-zinc-100" : "bg-white text-zinc-900"}`}>
+          <h2 className={`text-lg font-bold tracking-tight mb-2 ${isDark ? "text-white" : "text-zinc-900"}`}>
+            Delete Server
+          </h2>
+          <p className={`text-xs leading-relaxed mb-6 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
+            Are you sure you want to permanently delete{" "}
+            <strong className={isDark ? "text-white" : "text-zinc-900"}>{server?.name}</strong>? All files,
+            volumes, and bound network allocations will be permanently unassigned.
+          </p>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+              className={`w-1/2 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                isDark ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteServer}
+              disabled={deleteLoading}
+              className="w-1/2 py-2.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 flex items-center justify-center transition-all disabled:opacity-50"
+            >
+              {deleteLoading ? <Loading width={16} height={16} color="#ffffff" /> : "Confirm Delete"}
+            </button>
+          </div>
+        </div>
+      </ModalMenu>
     </div>
   );
 }
