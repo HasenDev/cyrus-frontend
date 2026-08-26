@@ -25,6 +25,7 @@ interface PaymentSettings {
   oxaPayApiKey: string;
   providerApiCallbackEnabled: boolean;
   apiCallbackKey: string;
+  externalCreditsStoreUrl?: string;
   creditsPricePer10: string;
   defaultMaxDeployments: string;
 }
@@ -37,6 +38,7 @@ export default function AdminPaymentPage() {
   const [oxaPayApiKey, setOxaPayApiKey] = useState("");
   const [providerApiCallbackEnabled, setProviderApiCallbackEnabled] = useState(false);
   const [apiCallbackKey, setApiCallbackKey] = useState("");
+  const [externalCreditsStoreUrl, setExternalCreditsStoreUrl] = useState("");
   const [creditsPricePer10, setCreditsPricePer10] = useState("0.20");
   const [defaultMaxDeployments, setDefaultMaxDeployments] = useState("10");
   const [showOxaPayKey, setShowOxaPayKey] = useState(false);
@@ -94,6 +96,7 @@ export default function AdminPaymentPage() {
         setOxaPayApiKey(data.oxaPayApiKey || "");
         setProviderApiCallbackEnabled(!!data.providerApiCallbackEnabled);
         setApiCallbackKey(data.apiCallbackKey || generateRandomKey());
+        setExternalCreditsStoreUrl(data.externalCreditsStoreUrl || "");
         setCreditsPricePer10(data.creditsPricePer10 || "0.20");
         setDefaultMaxDeployments(data.defaultMaxDeployments || "10");
       } catch {
@@ -136,6 +139,21 @@ export default function AdminPaymentPage() {
       return;
     }
 
+    if (externalCreditsStoreUrl.trim()) {
+      try {
+        const parsed = new URL(externalCreditsStoreUrl.trim());
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          setFormError("External Credits Store URL must start with http:// or https://");
+          setSaving(false);
+          return;
+        }
+      } catch {
+        setFormError("Please enter a valid External Credits Store URL.");
+        setSaving(false);
+        return;
+      }
+    }
+
     const token = Cookies.get("token");
     if (!token) {
       setFormError("Authentication token missing.");
@@ -153,6 +171,7 @@ export default function AdminPaymentPage() {
           oxaPayApiKey,
           providerApiCallbackEnabled,
           apiCallbackKey,
+          externalCreditsStoreUrl: externalCreditsStoreUrl.trim(),
           creditsPricePer10: parseFloat(creditsPricePer10),
           defaultMaxDeployments: parseInt(defaultMaxDeployments, 10),
         }),
@@ -533,6 +552,26 @@ export default function AdminPaymentPage() {
                         <span>Re-gen</span>
                       </button>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className={`block text-xs font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
+                      External Credits Store URL <span className="text-zinc-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="url"
+                      value={externalCreditsStoreUrl}
+                      onChange={(e) => setExternalCreditsStoreUrl(e.target.value)}
+                      placeholder="https://store.yourdomain.com/credits"
+                      className={`w-full rounded-xl border px-3.5 py-2.5 text-xs outline-none ${
+                        isDark
+                          ? "border-white/10 bg-[#07080a] text-white focus:border-white/30"
+                          : "border-zinc-300 bg-white text-zinc-900 focus:border-zinc-400"
+                      }`}
+                    />
+                    <p className={`text-[11px] ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
+                      Redirect users to your external billing site or store when they want to top up credits.
+                    </p>
                   </div>
 
                   <div className="space-y-2 pt-2">
