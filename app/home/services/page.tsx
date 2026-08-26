@@ -15,6 +15,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ArrowRightIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 
 interface ClientServer {
@@ -37,6 +38,7 @@ interface ClientServer {
 }
 
 const formatStatus = (status: string, installing: boolean, suspended?: boolean) => {
+  if (status === "installation_failed") return "Installation Failed";
   if (installing || status === "installing") return "Installing";
   if (suspended || status === "suspended") return "Suspended";
   if (!status) return "Offline";
@@ -164,6 +166,7 @@ export default function ServicesPage() {
   };
 
   const getStatusLineColor = (status: string, installing: boolean, suspended?: boolean) => {
+    if (status === "installation_failed") return "bg-rose-500 shadow-rose-500/50";
     if (installing || status === "installing") return "bg-cyan-500 shadow-cyan-500/50";
     if (suspended || status === "suspended") return "bg-rose-500 shadow-rose-500/50";
     switch (status) {
@@ -179,6 +182,15 @@ export default function ServicesPage() {
   };
 
   const StatusBadge = ({ status, installing, suspended }: { status: string; installing: boolean; suspended?: boolean }) => {
+    if (status === "installation_failed") {
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-400 border border-rose-500/20 shrink-0">
+          <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+          Failed Install
+        </span>
+      );
+    }
+
     if (installing || status === "installing") {
       return (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs font-bold text-cyan-400 border border-cyan-500/20 shrink-0">
@@ -295,56 +307,110 @@ export default function ServicesPage() {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {servers.map((service) => (
-              <div
-                key={service.id}
-                onClick={() => handleCardClick(service.id)}
-                className={`relative overflow-hidden rounded-2xl border p-4 sm:p-6 shadow-sm transition-all duration-200 flex flex-col justify-between ${
-                  isDark
-                    ? "border-white/[0.06] bg-[#0F1014] hover:border-white/20"
-                    : "border-zinc-200 bg-white hover:border-zinc-300"
-                } ${isDesktop ? "cursor-pointer group hover:shadow-md" : ""}`}
-              >
+            {servers.map((service) => {
+              const isFailed = service.status === "installation_failed";
+              const canDelete = !service.shared && (!service.installing || isFailed);
+
+              return (
                 <div
-                  className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusLineColor(
-                    service.status,
-                    service.installing,
-                    service.suspended
-                  )}`}
-                />
+                  key={service.id}
+                  onClick={() => handleCardClick(service.id)}
+                  className={`relative overflow-hidden rounded-2xl border p-4 sm:p-6 shadow-sm transition-all duration-200 flex flex-col justify-between ${
+                    isDark
+                      ? "border-white/[0.06] bg-[#0F1014] hover:border-white/20"
+                      : "border-zinc-200 bg-white hover:border-zinc-300"
+                  } ${isDesktop ? "cursor-pointer group hover:shadow-md" : ""}`}
+                >
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusLineColor(
+                      service.status,
+                      service.installing,
+                      service.suspended
+                    )}`}
+                  />
 
-                <div className="pl-2 sm:pl-3 flex-1 flex flex-col justify-between space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2.5">
-                      <div className="space-y-1.5 min-w-[150px] flex-1">
-                        <h3
-                          className={`text-base sm:text-lg font-extrabold tracking-tight truncate ${
-                            isDark ? "text-white" : "text-zinc-900"
-                          }`}
-                        >
-                          {service.name}
-                        </h3>
+                  <div className="pl-2 sm:pl-3 flex-1 flex flex-col justify-between space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2.5">
+                        <div className="space-y-1.5 min-w-[150px] flex-1">
+                          <h3
+                            className={`text-base sm:text-lg font-extrabold tracking-tight truncate ${
+                              isDark ? "text-white" : "text-zinc-900"
+                            }`}
+                          >
+                            {service.name}
+                          </h3>
 
-                        <p className={`text-xs line-clamp-2 leading-relaxed ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
-                          {service.description ? service.description : service.eggName || service.nestName || "Standard Instance"}
-                        </p>
+                          <p className={`text-xs line-clamp-2 leading-relaxed ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
+                            {service.description ? service.description : service.eggName || service.nestName || "Standard Instance"}
+                          </p>
 
-                        {service.shared && (
-                          <div className="pt-0.5 flex items-center">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-purple-500/10 border border-purple-500/20 text-purple-400">
-                              Shared
-                            </span>
-                          </div>
-                        )}
+                          {service.shared && (
+                            <div className="pt-0.5 flex items-center">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                                Shared
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                          <StatusBadge
+                            status={service.status}
+                            installing={service.installing}
+                            suspended={service.suspended}
+                          />
+                          {isDesktop && canDelete && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setServerToDelete(service);
+                                setIsDeleteModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-xl text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all opacity-80 group-hover:opacity-100"
+                              title="Delete Server"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                        <StatusBadge
-                          status={service.status}
-                          installing={service.installing}
-                          suspended={service.suspended}
-                        />
-                        {isDesktop && !service.shared && (
+                    {isDesktop && (
+                      <div
+                        className={`pt-3 flex items-center justify-between border-t text-xs font-bold transition-colors ${
+                          isDark
+                            ? "border-white/5 text-zinc-400 group-hover:text-white"
+                            : "border-zinc-100 text-zinc-500 group-hover:text-zinc-900"
+                        }`}
+                      >
+                        <span>Manage service</span>
+                        <ArrowRightIcon className="w-4 h-4 stroke-[2.5] transition-transform group-hover:translate-x-1" style={{ color: accentColor }} />
+                      </div>
+                    )}
+
+                    {!isDesktop && (
+                      <div
+                        className={`pt-3 flex flex-col min-[290px]:flex-row items-stretch min-[290px]:items-center gap-2.5 border-t ${
+                          isDark ? "border-white/5" : "border-zinc-100"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/home/server?id=${service.id}`);
+                          }}
+                          style={{ backgroundColor: accentColor }}
+                          className="w-full min-[290px]:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-black transition-all hover:opacity-90 shadow-sm flex items-center justify-center gap-2"
+                        >
+                          <span>Manage</span>
+                          <ArrowRightIcon className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+
+                        {canDelete && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -352,68 +418,19 @@ export default function ServicesPage() {
                               setServerToDelete(service);
                               setIsDeleteModalOpen(true);
                             }}
-                            className="p-1.5 rounded-xl text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all opacity-80 group-hover:opacity-100"
+                            className="w-full min-[290px]:w-auto px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center justify-center gap-1.5 shrink-0"
                             title="Delete Server"
                           >
-                            <TrashIcon className="w-4 h-4" />
+                            <TrashIcon className="w-4 h-4 stroke-[2.2]" />
+                            <span className="inline min-[290px]:hidden">Delete Server</span>
                           </button>
                         )}
                       </div>
-                    </div>
+                    )}
                   </div>
-
-                  {isDesktop && (
-                    <div
-                      className={`pt-3 flex items-center justify-between border-t text-xs font-bold transition-colors ${
-                        isDark
-                          ? "border-white/5 text-zinc-400 group-hover:text-white"
-                          : "border-zinc-100 text-zinc-500 group-hover:text-zinc-900"
-                      }`}
-                    >
-                      <span>Manage service</span>
-                      <ArrowRightIcon className="w-4 h-4 stroke-[2.5] transition-transform group-hover:translate-x-1" style={{ color: accentColor }} />
-                    </div>
-                  )}
-
-                  {!isDesktop && (
-                    <div
-                      className={`pt-3 flex flex-col min-[290px]:flex-row items-stretch min-[290px]:items-center gap-2.5 border-t ${
-                        isDark ? "border-white/5" : "border-zinc-100"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/home/server?id=${service.id}`);
-                        }}
-                        style={{ backgroundColor: accentColor }}
-                        className="w-full min-[290px]:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-black transition-all hover:opacity-90 shadow-sm flex items-center justify-center gap-2"
-                      >
-                        <span>Manage</span>
-                        <ArrowRightIcon className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      {!service.shared && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setServerToDelete(service);
-                            setIsDeleteModalOpen(true);
-                          }}
-                          className="w-full min-[290px]:w-auto px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center justify-center gap-1.5 shrink-0"
-                          title="Delete Server"
-                        >
-                          <TrashIcon className="w-4 h-4 stroke-[2.2]" />
-                          <span className="inline min-[290px]:hidden">Delete Server</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {totalPages > 1 && (
