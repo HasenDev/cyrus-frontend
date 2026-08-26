@@ -7,6 +7,11 @@ import Loading from "@/components/Base/Loading";
 import { useAppStore } from "@/app/home/layout";
 import { config, apiRequest } from "@/lib/main";
 import { parseCredits } from "@/lib/misc/creditsParser";
+import {
+  ShoppingBagIcon,
+  ArrowTopRightOnSquareIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
 
 interface Transaction {
   id: string;
@@ -23,9 +28,15 @@ export default function CreditsPage() {
   const { user, setUser } = useAppStore();
   const accentColor = config.accentColor || "#00f2fe";
   const isDark = config.theme === "dark";
-  const [currentCredits, setCurrentCredits] = useState<number>(user?.metrics?.credits ?? 0);
+  const [currentCredits, setCurrentCredits] = useState<number>(
+    user?.metrics?.credits ?? 0,
+  );
   const [paymentsEnabled, setPaymentsEnabled] = useState<boolean>(true);
-  const [providerOxapayEnabled, setProviderOxapayEnabled] = useState<boolean>(true);
+  const [providerOxapayEnabled, setProviderOxapayEnabled] =
+    useState<boolean>(true);
+  const [externalCreditsStoreUrl, setExternalCreditsStoreUrl] = useState<
+    string | null
+  >(null);
   const [creditsPerDollar, setCreditsPerDollar] = useState<number>(50);
   const [amountUSD, setAmountUSD] = useState<number>(10);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -55,6 +66,20 @@ export default function CreditsPage() {
     return rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
   };
 
+  const getExternalStoreUrlWithAmount = (
+    baseUrl: string,
+    amount: number,
+  ): string => {
+    try {
+      const url = new URL(baseUrl);
+      url.searchParams.set("amount", amount.toString());
+      return url.toString();
+    } catch {
+      const separator = baseUrl.includes("?") ? "&" : "?";
+      return `${baseUrl}${separator}amount=${encodeURIComponent(amount)}`;
+    }
+  };
+
   const fetchCreditsData = async () => {
     const token = Cookies.get("token");
     if (!token) {
@@ -73,6 +98,7 @@ export default function CreditsPage() {
         setCurrentCredits(data.credits ?? 0);
         setPaymentsEnabled(!!data.paymentsEnabled);
         setProviderOxapayEnabled(!!data.providerOxapayEnabled);
+        setExternalCreditsStoreUrl(data.externalCreditsStoreUrl || null);
         setCreditsPerDollar(data.creditsPerDollar || 50);
         setTransactions(data.transactions || []);
       }
@@ -213,46 +239,114 @@ export default function CreditsPage() {
     );
   }
 
+  const hasAnyPaymentOption =
+    providerOxapayEnabled || Boolean(externalCreditsStoreUrl);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto px-1 sm:px-0">
       <div>
-        <h1 className={`text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-zinc-900"}`}>
+        <h1
+          className={`text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-zinc-900"}`}
+        >
           Credits
         </h1>
       </div>
 
-      <div
-        className={`rounded-xl border p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
-          isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
-        }`}
-      >
-        <div>
-          <span className={`block text-xs font-bold uppercase tracking-widest ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
-            Available Credits Balance
-          </span>
-          <p className={`text-xs mt-0.5 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
-            Use credits to fund server deployments.
-          </p>
+      <div className="space-y-3">
+        <div
+          className={`rounded-xl border p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
+            isDark
+              ? "border-white/[0.06] bg-[#0F1014]"
+              : "border-zinc-200 bg-white"
+          }`}
+        >
+          <div>
+            <span
+              className={`block text-xs font-bold uppercase tracking-widest ${isDark ? "text-zinc-500" : "text-zinc-400"}`}
+            >
+              Available Credits Balance
+            </span>
+            <p
+              className={`text-xs mt-0.5 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}
+            >
+              Use credits to fund server deployments.
+            </p>
+          </div>
+
+          <div className="flex items-baseline gap-2">
+            <span
+              className={`text-4xl font-black ${isDark ? "text-white" : "text-zinc-900"}`}
+            >
+              {parseCredits(currentCredits)}
+            </span>
+            <span className="text-sm font-bold" style={{ color: accentColor }}>
+              Cr
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-baseline gap-2">
-          <span className={`text-4xl font-black ${isDark ? "text-white" : "text-zinc-900"}`}>
-            {parseCredits(currentCredits)}
-          </span>
-          <span className="text-sm font-bold" style={{ color: accentColor }}>
-            Cr
-          </span>
-        </div>
+        {externalCreditsStoreUrl && (
+          <div
+            className={`rounded-xl border p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
+              isDark
+                ? "border-white/[0.06] bg-[#0F1014]"
+                : "border-zinc-200 bg-white"
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <div
+                className="p-2.5 rounded-xl shrink-0"
+                style={{
+                  backgroundColor: `${accentColor}15`,
+                  color: accentColor,
+                }}
+              >
+                <InformationCircleIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <span
+                  className={`text-sm font-bold block ${isDark ? "text-white" : "text-zinc-900"}`}
+                >
+                  Official Store Available
+                </span>
+                <p
+                  className={`text-xs mt-0.5 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}
+                >
+                  Purchase credits and exclusive bundles directly through our
+                  official external store.
+                </p>
+              </div>
+            </div>
+
+            <a
+              href={getExternalStoreUrlWithAmount(
+                externalCreditsStoreUrl,
+                amountUSD || 10,
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs shrink-0 transition-all text-black shadow-sm hover:opacity-90 self-start sm:self-auto"
+              style={{ backgroundColor: accentColor }}
+            >
+              <span>Visit Store</span>
+              <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div
           className={`rounded-xl border p-6 shadow-md flex flex-col justify-between space-y-6 transition-colors ${
-            isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
+            isDark
+              ? "border-white/[0.06] bg-[#0F1014]"
+              : "border-zinc-200 bg-white"
           }`}
         >
           <div className="space-y-4">
-            <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-zinc-900"}`}>
+            <h2
+              className={`text-lg font-bold ${isDark ? "text-white" : "text-zinc-900"}`}
+            >
               Buy Credits
             </h2>
 
@@ -269,14 +363,18 @@ export default function CreditsPage() {
                       borderColor: isSelected
                         ? accentColor
                         : isDark
-                        ? "rgba(255, 255, 255, 0.08)"
-                        : "rgba(0, 0, 0, 0.1)",
+                          ? "rgba(255, 255, 255, 0.08)"
+                          : "rgba(0, 0, 0, 0.1)",
                       backgroundColor: isSelected
                         ? `${accentColor}15`
                         : isDark
-                        ? "rgba(255, 255, 255, 0.02)"
-                        : "rgba(0, 0, 0, 0.02)",
-                      color: isSelected ? accentColor : isDark ? "#ffffff" : "#18181b",
+                          ? "rgba(255, 255, 255, 0.02)"
+                          : "rgba(0, 0, 0, 0.02)",
+                      color: isSelected
+                        ? accentColor
+                        : isDark
+                          ? "#ffffff"
+                          : "#18181b",
                     }}
                   >
                     ${val}
@@ -286,7 +384,9 @@ export default function CreditsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className={`block text-xs font-medium ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>
+              <label
+                className={`block text-xs font-medium ${isDark ? "text-zinc-400" : "text-zinc-600"}`}
+              >
                 Custom Dollar Amount
               </label>
               <div className="relative flex items-center">
@@ -304,14 +404,28 @@ export default function CreditsPage() {
                   }`}
                 />
                 <div className="absolute right-3.5 pointer-events-none text-zinc-400">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                 </div>
               </div>
-              <p className={`text-[11px] ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
+              <p
+                className={`text-[11px] ${isDark ? "text-zinc-500" : "text-zinc-400"}`}
+              >
                 Calculated Credits:{" "}
-                <span className={`font-bold ${isDark ? "text-white" : "text-zinc-900"}`}>
+                <span
+                  className={`font-bold ${isDark ? "text-white" : "text-zinc-900"}`}
+                >
                   {parseCredits(amountUSD * creditsPerDollar)} Cr
                 </span>
               </p>
@@ -330,17 +444,23 @@ export default function CreditsPage() {
 
         <div
           className={`rounded-xl border p-6 shadow-md flex flex-col justify-between space-y-6 transition-colors ${
-            isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"
+            isDark
+              ? "border-white/[0.06] bg-[#0F1014]"
+              : "border-zinc-200 bg-white"
           }`}
         >
           <div className="space-y-4">
-            <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-zinc-900"}`}>
+            <h2
+              className={`text-lg font-bold ${isDark ? "text-white" : "text-zinc-900"}`}
+            >
               Claim Coupon
             </h2>
 
             <form onSubmit={handleRedeemVoucher} className="space-y-4">
               <div className="space-y-1.5">
-                <label className={`block text-xs font-medium ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>
+                <label
+                  className={`block text-xs font-medium ${isDark ? "text-zinc-400" : "text-zinc-600"}`}
+                >
                   Enter 8-Char Voucher Key
                 </label>
                 <input
@@ -383,13 +503,22 @@ export default function CreditsPage() {
             )}
           </div>
 
-          <div className={`rounded-lg p-3.5 border ${isDark ? "bg-black/30 border-white/[0.04]" : "bg-zinc-50 border-zinc-200"}`}>
-            <span className={`text-[10px] font-bold uppercase tracking-widest block mb-1 ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
+          <div
+            className={`rounded-lg p-3.5 border ${isDark ? "bg-black/30 border-white/[0.04]" : "bg-zinc-50 border-zinc-200"}`}
+          >
+            <span
+              className={`text-[10px] font-bold uppercase tracking-widest block mb-1 ${isDark ? "text-zinc-500" : "text-zinc-400"}`}
+            >
               Voucher Format
             </span>
-            <p className={`text-xs ${isDark ? "text-zinc-400" : "text-zinc-600"}`}>
+            <p
+              className={`text-xs ${isDark ? "text-zinc-400" : "text-zinc-600"}`}
+            >
               Vouchers automatically format with a hyphen separator (e.g.{" "}
-              <code className="font-mono font-bold" style={{ color: accentColor }}>
+              <code
+                className="font-mono font-bold"
+                style={{ color: accentColor }}
+              >
                 SAVE-2025
               </code>
               ).
@@ -398,21 +527,31 @@ export default function CreditsPage() {
         </div>
       </div>
 
-      <div className={`rounded-xl border p-6 shadow-md space-y-4 transition-colors ${isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"}`}>
+      <div
+        className={`rounded-xl border p-6 shadow-md space-y-4 transition-colors ${isDark ? "border-white/[0.06] bg-[#0F1014]" : "border-zinc-200 bg-white"}`}
+      >
         <div>
-          <h3 className={`text-lg font-bold ${isDark ? "text-white" : "text-zinc-900"}`}>
+          <h3
+            className={`text-lg font-bold ${isDark ? "text-white" : "text-zinc-900"}`}
+          >
             Transaction History
           </h3>
-          <p className={`text-xs ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
+          <p
+            className={`text-xs ${isDark ? "text-zinc-400" : "text-zinc-500"}`}
+          >
             Recent credit top-ups and billing records.
           </p>
         </div>
 
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-left text-xs min-w-[500px]">
-            <thead className={`text-[10px] font-bold uppercase tracking-wider border-y ${
-              isDark ? "bg-white/[0.02] text-zinc-500 border-white/[0.04]" : "bg-zinc-50 text-zinc-400 border-zinc-200"
-            }`}>
+            <thead
+              className={`text-[10px] font-bold uppercase tracking-wider border-y ${
+                isDark
+                  ? "bg-white/[0.02] text-zinc-500 border-white/[0.04]"
+                  : "bg-zinc-50 text-zinc-400 border-zinc-200"
+              }`}
+            >
               <tr>
                 <th className="py-3 px-4">Transaction ID</th>
                 <th className="py-3 px-4">Date & Time</th>
@@ -421,10 +560,15 @@ export default function CreditsPage() {
                 <th className="py-3 px-4 text-right">Status</th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDark ? "divide-white/[0.04]" : "divide-zinc-200"}`}>
+            <tbody
+              className={`divide-y ${isDark ? "divide-white/[0.04]" : "divide-zinc-200"}`}
+            >
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={`py-8 text-center text-xs font-semibold ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
+                  <td
+                    colSpan={5}
+                    className={`py-8 text-center text-xs font-semibold ${isDark ? "text-zinc-500" : "text-zinc-400"}`}
+                  >
                     No transactions recorded yet.
                   </td>
                 </tr>
@@ -432,43 +576,65 @@ export default function CreditsPage() {
                 transactions.map((txn) => {
                   const status = getEffectiveStatus(txn);
                   const normalizedStatus = status.toLowerCase();
-                  const isSuccess = normalizedStatus === "completed" || normalizedStatus === "paid";
+                  const isSuccess =
+                    normalizedStatus === "completed" ||
+                    normalizedStatus === "paid";
                   const isPending = normalizedStatus === "pending";
-                  const isTimedOut = normalizedStatus === "timed out" || normalizedStatus === "expired";
+                  const isTimedOut =
+                    normalizedStatus === "timed out" ||
+                    normalizedStatus === "expired";
 
                   return (
-                    <tr key={txn.id} className={`transition-colors ${isDark ? "hover:bg-white/[0.01]" : "hover:bg-zinc-50"}`}>
-                      <td className={`py-3.5 px-4 font-mono font-medium ${isDark ? "text-white" : "text-zinc-900"}`}>
+                    <tr
+                      key={txn.id}
+                      className={`transition-colors ${isDark ? "hover:bg-white/[0.01]" : "hover:bg-zinc-50"}`}
+                    >
+                      <td
+                        className={`py-3.5 px-4 font-mono font-medium ${isDark ? "text-white" : "text-zinc-900"}`}
+                      >
                         {txn.id}
                       </td>
-                      <td className={`py-3.5 px-4 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
+                      <td
+                        className={`py-3.5 px-4 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}
+                      >
                         {txn.date}
                       </td>
-                      <td className={`py-3.5 px-4 font-bold ${txn.credits >= 0 ? (isDark ? "text-emerald-400" : "text-emerald-600") : "text-rose-400"}`}>
-                        {txn.credits >= 0 ? `+${parseCredits(txn.credits)}` : `${parseCredits(txn.credits)}`} Cr
+                      <td
+                        className={`py-3.5 px-4 font-bold ${txn.credits >= 0 ? (isDark ? "text-emerald-400" : "text-emerald-600") : "text-rose-400"}`}
+                      >
+                        {txn.credits >= 0
+                          ? `+${parseCredits(txn.credits)}`
+                          : `${parseCredits(txn.credits)}`}{" "}
+                        Cr
                       </td>
-                      <td className={`py-3.5 px-4 font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}>
+                      <td
+                        className={`py-3.5 px-4 font-semibold ${isDark ? "text-zinc-300" : "text-zinc-700"}`}
+                      >
                         ${txn.amountUSD.toFixed(2)}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
-                          isSuccess
-                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                            : isPending
-                            ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                            : isTimedOut
-                            ? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
-                            : "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                        }`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${
-                            isSuccess 
-                              ? "bg-emerald-500" 
-                              : isPending 
-                              ? "bg-amber-500 animate-pulse" 
-                              : isTimedOut
-                              ? "bg-zinc-400"
-                              : "bg-rose-500"
-                          }`} />
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                            isSuccess
+                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                              : isPending
+                                ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                : isTimedOut
+                                  ? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                                  : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              isSuccess
+                                ? "bg-emerald-500"
+                                : isPending
+                                  ? "bg-amber-500 animate-pulse"
+                                  : isTimedOut
+                                    ? "bg-zinc-400"
+                                    : "bg-rose-500"
+                            }`}
+                          />
                           {status}
                         </span>
                       </td>
@@ -481,14 +647,31 @@ export default function CreditsPage() {
         </div>
       </div>
 
-      <ModalMenu isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} desktopMaxWidth="420px">
-        <div className={`p-6 sm:p-8 text-left font-sans ${isDark ? "bg-[#0F1014] text-zinc-100" : "bg-white text-zinc-900"}`}>
-          <h2 className={`text-lg font-bold tracking-tight mb-1 ${isDark ? "text-white" : "text-zinc-900"}`}>
+      <ModalMenu
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        desktopMaxWidth="420px"
+      >
+        <div
+          className={`p-6 sm:p-8 text-left font-sans ${isDark ? "bg-[#0F1014] text-zinc-100" : "bg-white text-zinc-900"}`}
+        >
+          <h2
+            className={`text-lg font-bold tracking-tight mb-1 ${isDark ? "text-white" : "text-zinc-900"}`}
+          >
             Select Payment Provider
           </h2>
-          <p className={`text-xs leading-relaxed mb-6 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>
-            Checkout <strong className={isDark ? "text-white" : "text-zinc-900"}>${amountUSD.toFixed(2)} USD</strong> for{" "}
-            <strong style={{ color: accentColor }}>{parseCredits(amountUSD * creditsPerDollar)} Credits</strong>.
+          <p
+            className={`text-xs leading-relaxed mb-6 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}
+          >
+            Checkout{" "}
+            <strong className={isDark ? "text-white" : "text-zinc-900"}>
+              ${amountUSD.toFixed(2)} USD
+            </strong>{" "}
+            for{" "}
+            <strong style={{ color: accentColor }}>
+              {parseCredits(amountUSD * creditsPerDollar)} Credits
+            </strong>
+            .
           </p>
 
           {checkoutError && (
@@ -499,7 +682,7 @@ export default function CreditsPage() {
 
           {!payUrl ? (
             <div className="space-y-3">
-              {providerOxapayEnabled ? (
+              {providerOxapayEnabled && (
                 <button
                   type="button"
                   disabled={generatingLink}
@@ -523,11 +706,46 @@ export default function CreditsPage() {
                   {generatingLink ? (
                     <Loading width={18} height={18} />
                   ) : (
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Select</span>
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
+                      Select
+                    </span>
                   )}
                 </button>
-              ) : (
-                <div className={`p-4 rounded-xl text-center text-xs ${isDark ? "text-zinc-500 bg-white/[0.01]" : "text-zinc-400 bg-zinc-50"}`}>
+              )}
+
+              {externalCreditsStoreUrl && (
+                <a
+                  href={getExternalStoreUrlWithAmount(
+                    externalCreditsStoreUrl,
+                    amountUSD,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`w-full p-4 rounded-xl border font-bold text-xs transition-all flex items-center justify-between gap-3 ${
+                    isDark
+                      ? "border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-white"
+                      : "border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <span className="block font-bold">External Store</span>
+                      <span
+                        className={`text-[10px] font-normal block ${isDark ? "text-zinc-500" : "text-zinc-400"}`}
+                      >
+                        Pay via official external billing checkout
+                      </span>
+                    </div>
+                  </div>
+
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4 text-zinc-500 shrink-0" />
+                </a>
+              )}
+
+              {!hasAnyPaymentOption && (
+                <div
+                  className={`p-4 rounded-xl text-center text-xs ${isDark ? "text-zinc-500 bg-white/[0.01]" : "text-zinc-400 bg-zinc-50"}`}
+                >
                   No active payment gateways configured by admin.
                 </div>
               )}
@@ -550,7 +768,9 @@ export default function CreditsPage() {
             type="button"
             onClick={() => setIsPaymentModalOpen(false)}
             className={`w-full mt-4 py-2.5 rounded-xl text-xs font-semibold ${
-              isDark ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+              isDark
+                ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
             }`}
           >
             Cancel
