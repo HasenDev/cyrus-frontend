@@ -4,6 +4,7 @@ import React, { useState, useEffect, FormEvent } from "react";
 import Cookies from "js-cookie";
 import { motion, AnimatePresence } from "framer-motion";
 import Loading from "@/components/Base/Loading";
+import SaveBar from "@/components/Base/SaveBar";
 import { config, apiRequest } from "@/lib/main";
 import {
   CreditCardIcon,
@@ -33,6 +34,9 @@ interface PaymentSettings {
 export default function AdminPaymentPage() {
   const isDark = config.theme === "dark";
   const accentColor = config.accentColor || "#00f2fe";
+
+  const [initialSettings, setInitialSettings] = useState<PaymentSettings | null>(null);
+
   const [paymentsEnabled, setPaymentsEnabled] = useState(false);
   const [providerOxapayEnabled, setProviderOxapayEnabled] = useState(false);
   const [oxaPayApiKey, setOxaPayApiKey] = useState("");
@@ -41,6 +45,7 @@ export default function AdminPaymentPage() {
   const [externalCreditsStoreUrl, setExternalCreditsStoreUrl] = useState("");
   const [creditsPricePer10, setCreditsPricePer10] = useState("0.20");
   const [defaultMaxDeployments, setDefaultMaxDeployments] = useState("10");
+
   const [showOxaPayKey, setShowOxaPayKey] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [copiedCurl, setCopiedCurl] = useState(false);
@@ -49,6 +54,7 @@ export default function AdminPaymentPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [oxaPayHasError, setOxaPayHasError] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const showSuccessToast = (text: string) => {
     setToastMessage(text);
     setTimeout(() => setToastMessage(null), 3500);
@@ -91,14 +97,26 @@ export default function AdminPaymentPage() {
         }
 
         const data: PaymentSettings = await res.json();
-        setPaymentsEnabled(!!data.paymentsEnabled);
-        setProviderOxapayEnabled(!!data.providerOxapayEnabled);
-        setOxaPayApiKey(data.oxaPayApiKey || "");
-        setProviderApiCallbackEnabled(!!data.providerApiCallbackEnabled);
-        setApiCallbackKey(data.apiCallbackKey || generateRandomKey());
-        setExternalCreditsStoreUrl(data.externalCreditsStoreUrl || "");
-        setCreditsPricePer10(data.creditsPricePer10 || "0.20");
-        setDefaultMaxDeployments(data.defaultMaxDeployments || "10");
+        const loadedSettings: PaymentSettings = {
+          paymentsEnabled: !!data.paymentsEnabled,
+          providerOxapayEnabled: !!data.providerOxapayEnabled,
+          oxaPayApiKey: data.oxaPayApiKey || "",
+          providerApiCallbackEnabled: !!data.providerApiCallbackEnabled,
+          apiCallbackKey: data.apiCallbackKey || generateRandomKey(),
+          externalCreditsStoreUrl: data.externalCreditsStoreUrl || "",
+          creditsPricePer10: data.creditsPricePer10 || "0.20",
+          defaultMaxDeployments: data.defaultMaxDeployments || "10",
+        };
+
+        setInitialSettings(loadedSettings);
+        setPaymentsEnabled(loadedSettings.paymentsEnabled);
+        setProviderOxapayEnabled(loadedSettings.providerOxapayEnabled);
+        setOxaPayApiKey(loadedSettings.oxaPayApiKey);
+        setProviderApiCallbackEnabled(loadedSettings.providerApiCallbackEnabled);
+        setApiCallbackKey(loadedSettings.apiCallbackKey);
+        setExternalCreditsStoreUrl(loadedSettings.externalCreditsStoreUrl || "");
+        setCreditsPricePer10(loadedSettings.creditsPricePer10);
+        setDefaultMaxDeployments(loadedSettings.defaultMaxDeployments);
       } catch {
         setFormError("Network error occurred while fetching payment settings.");
       } finally {
@@ -120,8 +138,22 @@ export default function AdminPaymentPage() {
     setApiCallbackKey(generateRandomKey());
   };
 
-  const handleSaveSettings = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleReset = () => {
+    if (!initialSettings) return;
+    setPaymentsEnabled(initialSettings.paymentsEnabled);
+    setProviderOxapayEnabled(initialSettings.providerOxapayEnabled);
+    setOxaPayApiKey(initialSettings.oxaPayApiKey);
+    setProviderApiCallbackEnabled(initialSettings.providerApiCallbackEnabled);
+    setApiCallbackKey(initialSettings.apiCallbackKey);
+    setExternalCreditsStoreUrl(initialSettings.externalCreditsStoreUrl || "");
+    setCreditsPricePer10(initialSettings.creditsPricePer10);
+    setDefaultMaxDeployments(initialSettings.defaultMaxDeployments);
+    setFormError(null);
+    setOxaPayHasError(false);
+  };
+
+  const handleSaveSettings = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
     setSaving(true);
     setFormError(null);
     setOxaPayHasError(false);
@@ -188,6 +220,17 @@ export default function AdminPaymentPage() {
         return;
       }
 
+      setInitialSettings({
+        paymentsEnabled,
+        providerOxapayEnabled,
+        oxaPayApiKey,
+        providerApiCallbackEnabled,
+        apiCallbackKey,
+        externalCreditsStoreUrl: externalCreditsStoreUrl.trim(),
+        creditsPricePer10,
+        defaultMaxDeployments,
+      });
+
       showSuccessToast("Saved changes!");
     } catch {
       setFormError("Network failure occurred while saving.");
@@ -195,6 +238,17 @@ export default function AdminPaymentPage() {
       setSaving(false);
     }
   };
+
+  const hasUnsavedChanges =
+    initialSettings !== null &&
+    (paymentsEnabled !== initialSettings.paymentsEnabled ||
+      providerOxapayEnabled !== initialSettings.providerOxapayEnabled ||
+      oxaPayApiKey !== initialSettings.oxaPayApiKey ||
+      providerApiCallbackEnabled !== initialSettings.providerApiCallbackEnabled ||
+      apiCallbackKey !== initialSettings.apiCallbackKey ||
+      externalCreditsStoreUrl !== (initialSettings.externalCreditsStoreUrl || "") ||
+      creditsPricePer10 !== initialSettings.creditsPricePer10 ||
+      defaultMaxDeployments !== initialSettings.defaultMaxDeployments);
 
   const apiBaseFormatted = config.apiBaseUrl.endsWith("/")
     ? config.apiBaseUrl
@@ -627,23 +681,15 @@ export default function AdminPaymentPage() {
             <span>{formError}</span>
           </div>
         )}
-
-        <button
-          type="submit"
-          disabled={saving}
-          style={{ backgroundColor: accentColor }}
-          className="px-6 py-3 rounded-xl text-xs font-bold text-black transition-all hover:opacity-90 disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
-        >
-          {saving ? (
-            <>
-              <Loading width={16} height={16} color="#000000" />
-              <span>Saving...</span>
-            </>
-          ) : (
-            "Save changes"
-          )}
-        </button>
       </form>
+
+      <SaveBar
+        isOpen={hasUnsavedChanges}
+        onReset={handleReset}
+        onSave={() => handleSaveSettings()}
+        isSaving={saving}
+        pendingAccentColor={accentColor}
+      />
     </div>
   );
 }
