@@ -6,6 +6,7 @@ import { config, apiRequest } from "@/lib/main";
 import { ServerDetails } from "@/app/home/server/page";
 import Loading from "@/components/Base/Loading";
 import Selector from "@/components/Base/Selector";
+import SaveBar from "@/components/Base/SaveBar";
 import {
   CommandLineIcon,
   CheckIcon,
@@ -49,14 +50,13 @@ export default function Startup({
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [startupCommand, setStartupCommand] = useState("");
   const [dockerImage, setDockerImage] = useState("");
+  const [initialDockerImage, setInitialDockerImage] = useState("");
   const [dockerImages, setDockerImages] = useState<Record<string, string>>({});
   const [variables, setVariables] = useState<EggVariable[]>([]);
-  const [savingImage, setSavingImage] = useState(false);
-  const [imageSuccess, setImageSuccess] = useState<string | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
-  const [savingVariables, setSavingVariables] = useState(false);
-  const [variablesSuccess, setVariablesSuccess] = useState<string | null>(null);
-  const [variablesError, setVariablesError] = useState<string | null>(null);
+  const [initialVariables, setInitialVariables] = useState<EggVariable[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchStartupDetails = useCallback(async () => {
     try {
@@ -68,12 +68,19 @@ export default function Startup({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load startup parameters.");
 
-      setStartupCommand(data.startup || "");
-      setDockerImage(data.dockerImage || "");
-      setDockerImages(data.dockerImages || {});
-      setVariables(data.variables || []);
+      const fetchedStartup = data.startup || "";
+      const fetchedDockerImage = data.dockerImage || "";
+      const fetchedDockerImages = data.dockerImages || {};
+      const fetchedVariables = data.variables || [];
+
+      setStartupCommand(fetchedStartup);
+      setDockerImage(fetchedDockerImage);
+      setInitialDockerImage(fetchedDockerImage);
+      setDockerImages(fetchedDockerImages);
+      setVariables(fetchedVariables);
+      setInitialVariables(fetchedVariables);
     } catch (err: any) {
-      setVariablesError(err.message || "Failed to communicate with startup service.");
+      setSaveError(err.message || "Failed to communicate with startup service.");
     } finally {
       setLoading(false);
     }
@@ -88,6 +95,7 @@ export default function Startup({
     setCopiedCmd(true);
     setTimeout(() => setCopiedCmd(false), 2000);
   };
+
   const isBooleanVariable = (v: EggVariable) => {
     const rules = v.rules.toLowerCase();
     const def = v.defaultValue.toLowerCase();
@@ -124,70 +132,75 @@ export default function Startup({
       prev.map((item) => (item.envVariable === envVariable ? { ...item, value: val } : item))
     );
   };
-  const handleSaveDockerImage = async () => {
-    if (!canManage) return;
-    setSavingImage(true);
-    setImageError(null);
-    setImageSuccess(null);
 
-    try {
-      const token = Cookies.get("token");
-      const res = await apiRequest(`api/v1/client/servers/${serverId}/startup`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ dockerImage })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update container image.");
+  const hasImageChanged = dockerImage !== initialDockerImage;
+  const hasVariablesChanged =
+    variables.length > 0 &&
+    initialVariables.length > 0 &&
+    variables.some((v) => {
+      const orig = initialVariables.find((iv) => iv.envVariable === v.envVariable);
+      return orig ? orig.value !== v.value : false;
+    });
 
-      setImageSuccess("Container image updated! Restart your server to apply.");
-      setTimeout(() => setImageSuccess(null), 4000);
-      onRefreshServer?.();
-    } catch (err: any) {
-      setImageError(err.message || "Failed to update container image.");
-    } finally {
-      setSavingImage(false);
-    }
+  const hasUnsavedChanges = canManage && (hasImageChanged || hasVariablesChanged);
+
+  const handleReset = () => {
+    setDockerImage(initialDockerImage);
+    setVariables(initialVariables);
+    setSaveError(null);
   };
-  const handleSaveVariables = async () => {
+
+  const handleSaveAll = async () => {
     if (!canManage) return;
-    setVariablesError(null);
-    setVariablesSuccess(null);
+    setSaveError(null);
+    setSaveSuccess(null);
+
     for (const v of variables) {
       if (!v.userEditable) continue;
       const isRequired = v.rules.toLowerCase().includes("required");
       if (isRequired && (!v.value || v.value.trim() === "")) {
-        setVariablesError(`"${v.name}" is required and cannot be left empty.`);
+        setSaveError(`"${v.name}" is required and cannot be left empty.`);
         return;
       }
     }
 
-    setSavingVariables(true);
-
-    const envMap: Record<string, string> = {};
-    variables.forEach((v) => {
-      if (v.userEditable) {
-        envMap[v.envVariable] = v.value;
-      }
-    });
+    setIsSaving(true);
 
     try {
       const token = Cookies.get("token");
+      const payload: { dockerImage?: string; environment?: Record<string, string> } = {};
+
+      if (hasImageChanged) {
+        payload.dockerImage = dockerImage;
+      }
+
+      if (hasVariablesChanged) {
+        const envMap: Record<string, string> = {};
+        variables.forEach((v) => {
+          if (v.userEditable) {
+            envMap[v.envVariable] = v.value;
+          }
+        });
+        payload.environment = envMap;
+      }
+
       const res = await apiRequest(`api/v1/client/servers/${serverId}/startup`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ environment: envMap })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update variables.");
+      if (!res.ok) throw new Error(data.error || "Failed to update startup configuration.");
 
-      setVariablesSuccess("Egg variables saved! Restart your server to apply changes.");
-      setTimeout(() => setVariablesSuccess(null), 4000);
+      setInitialDockerImage(dockerImage);
+      setInitialVariables(variables);
+      setSaveSuccess("Configuration saved! Restart your server to apply changes.");
+      setTimeout(() => setSaveSuccess(null), 4000);
       onRefreshServer?.();
     } catch (err: any) {
-      setVariablesError(err.message || "Failed to save variables.");
+      setSaveError(err.message || "Failed to save configuration.");
     } finally {
-      setSavingVariables(false);
+      setIsSaving(false);
     }
   };
 
@@ -198,6 +211,7 @@ export default function Startup({
       </div>
     );
   }
+
   const dockerOptions = Object.entries(dockerImages).map(([label, img]) => ({
     label: `${label} (${img})`,
     value: img
@@ -205,6 +219,33 @@ export default function Startup({
 
   return (
     <div className="space-y-6 select-none w-full max-w-full">
+      {(saveSuccess || saveError) && (
+        <div className="space-y-3">
+          {saveSuccess && (
+            <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <CheckIcon className="w-4 h-4 stroke-[3]" />
+                <span>{saveSuccess}</span>
+              </div>
+              <button onClick={() => setSaveSuccess(null)} className="hover:opacity-75">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {saveError && (
+            <div className="p-3.5 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
+                <span>{saveError}</span>
+              </div>
+              <button onClick={() => setSaveError(null)} className="hover:opacity-75">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 min-[980px]:grid-cols-2 gap-4 items-start">
         <div
           className={`p-5 rounded-2xl border ${
@@ -301,50 +342,6 @@ export default function Startup({
               onChange={(val) => canManage && setDockerImage(val)}
               placeholder="Select Container Image..."
             />
-            {imageSuccess && (
-              <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckIcon className="w-4 h-4 stroke-[3]" />
-                  <span>{imageSuccess}</span>
-                </div>
-                <button onClick={() => setImageSuccess(null)} className="hover:opacity-75">
-                  <XMarkIcon className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {imageError && (
-              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
-                  <span>{imageError}</span>
-                </div>
-                <button onClick={() => setImageError(null)} className="hover:opacity-75">
-                  <XMarkIcon className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleSaveDockerImage}
-              disabled={savingImage || !canManage}
-              style={
-                canManage
-                  ? { backgroundColor: accentColor, color: "#000" }
-                  : undefined
-              }
-              className={`w-full py-2.5 rounded-xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 ${
-                !canManage
-                  ? isDark
-                    ? "bg-zinc-900/60 text-zinc-600 border border-white/5 cursor-not-allowed opacity-40"
-                    : "bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-40"
-                  : "hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
-              }`}
-              title={!canManage ? "Requires startup.manage permission" : undefined}
-            >
-              {savingImage ? <Loading width={14} height={14} color="#000" /> : null}
-              <span>{savingImage ? "Saving..." : "Save Image"}</span>
-            </button>
           </div>
         </div>
       </div>
@@ -364,55 +361,7 @@ export default function Startup({
               Custom runtime arguments and dynamic server configurations.
             </p>
           </div>
-
-          <button
-            type="button"
-            onClick={handleSaveVariables}
-            disabled={savingVariables || !canManage}
-            style={
-              canManage
-                ? { backgroundColor: accentColor, color: "#000" }
-                : undefined
-            }
-            className={`self-start sm:self-auto px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all shrink-0 flex items-center gap-1.5 ${
-              !canManage
-                ? isDark
-                  ? "bg-zinc-900/60 text-zinc-600 border border-white/5 cursor-not-allowed opacity-40"
-                  : "bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed opacity-40"
-                : "hover:opacity-90 active:scale-95 disabled:opacity-50"
-            }`}
-            title={!canManage ? "Requires startup.manage permission" : undefined}
-          >
-            {savingVariables && <Loading width={14} height={14} color="#000" />}
-            <span>{savingVariables ? "Saving..." : "Save Configuration"}</span>
-          </button>
         </div>
-        {(variablesSuccess || variablesError) && (
-          <div className="p-4 border-b border-white/[0.04]">
-            {variablesSuccess && (
-              <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckIcon className="w-4 h-4 stroke-[3]" />
-                  <span>{variablesSuccess}</span>
-                </div>
-                <button onClick={() => setVariablesSuccess(null)} className="hover:opacity-75">
-                  <XMarkIcon className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            {variablesError && (
-              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
-                  <span>{variablesError}</span>
-                </div>
-                <button onClick={() => setVariablesError(null)} className="hover:opacity-75">
-                  <XMarkIcon className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
         {variables.length === 0 ? (
           <div className={`p-12 text-center text-xs ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
@@ -506,6 +455,14 @@ export default function Startup({
           </div>
         )}
       </div>
+
+      <SaveBar
+        isOpen={hasUnsavedChanges}
+        onReset={handleReset}
+        onSave={handleSaveAll}
+        isSaving={isSaving}
+        pendingAccentColor={accentColor}
+      />
     </div>
   );
 }
