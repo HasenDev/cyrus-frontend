@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import Loading from "@/components/Loading";
+import Loading from "@/components/Base/Loading";
 import { config } from "@/lib/main";
 
 interface SaveBarProps {
@@ -59,7 +59,6 @@ export default function SaveBar({
                 : "border-zinc-200/90 bg-white/95 text-zinc-900 shadow-zinc-900/10"
             }`}
           >
-            {/* Draggable Handle Indicator */}
             <div
               className="flex justify-center pb-2.5 cursor-grab active:cursor-grabbing select-none"
               style={{ touchAction: "none" }}
